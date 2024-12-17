@@ -173,24 +173,6 @@ const abi = [
     ],
   },
   {
-    type: "struct",
-    name: "gridy::game::main::GameContract::BlockPoint",
-    members: [
-      { name: "id", type: "core::felt252" },
-      { name: "points", type: "core::integer::u128" },
-    ],
-  },
-  {
-    type: "struct",
-    name: "core::array::Span::<gridy::game::main::GameContract::BlockPoint>",
-    members: [
-      {
-        name: "snapshot",
-        type: "@core::array::Array::<gridy::game::main::GameContract::BlockPoint>",
-      },
-    ],
-  },
-  {
     type: "constructor",
     name: "constructor",
     inputs: [
@@ -206,10 +188,6 @@ const abi = [
       { name: "mining_points", type: "core::integer::u128" },
       { name: "grid_width", type: "core::integer::u128" },
       { name: "grid_height", type: "core::integer::u128" },
-      {
-        name: "block_points",
-        type: "core::array::Span::<gridy::game::main::GameContract::BlockPoint>",
-      },
     ],
   },
   {
@@ -384,5 +362,3 @@ const abi = [
     ],
   },
 ];
-
-module.exports = abi;

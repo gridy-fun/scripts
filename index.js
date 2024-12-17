@@ -83,9 +83,12 @@ const declareContract = async (compiledTestCasm, compiledTestSierra) => {
   );
 };
 
-const deployContract = async (calldata) => {
+const deployContract = async (class_hash, calldata) => {
   const deployResponse = await account.deploy({
+    classHash: class_hash,
     calldata: calldata,
+    salt: BigInt(0),
+    unique: false,
   });
 
   console.log(
@@ -178,9 +181,15 @@ const botInitialiseParams = async (game_contract_address) => {
 
 const main = async () => {
   // deploy game contract
+  const game_class_hash = await getGameClassHash();
   const gameCalldata = await gameInitialiseParams();
 
-  const game_contract_address = await deployContract(gameCalldata);
+  console.log("Game class hash", game_class_hash);
+
+  const game_contract_address = await deployContract(
+    game_class_hash,
+    gameCalldata
+  );
 };
 
 main();
