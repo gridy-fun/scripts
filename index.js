@@ -1,18 +1,28 @@
-const { configDotenv } = require("dotenv");
-const { Provider, Account, json, CallData, hash } = require("starknet");
-const gameAbi = require("./assets/game_abi");
-const botAbi = require("./assets/bot_abi");
-const fs = require("fs");
 
-configDotenv();
-const provider = new Provider({
-  nodeUrl: process.env.RPC_URL,
-});
+import { Account, json, RpcProvider, CallData, hash, cairo , Contract} from "starknet";
+import fs from "fs";
 
-const privateKey = process.env.ACCOUNT_PRIVATE_KEY;
-const accountAddress = process.env.ACCOUNT_ADDRESS;
+const provider = new RpcProvider({ nodeUrl: "http://localhost:9944" });
 
-const account = new Account(provider, accountAddress, privateKey);
+const DEPLOYER_ADDRESS =
+  "0x055be462e718c4166d656d11f89e341115b8bc82389c3762a10eade04fcb225d";
+const DEPLOYER_PRIV_KEY =
+  "0x077e56c6dc32d40a67f6f7e6625c8dc5e570abe49c0a24e9202e4ae906abcc07";
+
+const gameSierra = json.parse(
+  fs.readFileSync("./assets/gridy_GameContract.contract_class.json").toString("ascii")
+);
+const gameCasm = json.parse(
+  fs.readFileSync("./assets/gridy_GameContract.compiled_contract_class.json").toString("ascii")
+);
+
+const botsSierra = json.parse(
+  fs.readFileSync("./assets/gridy_BotContract.contract_class.json").toString("ascii")
+);
+const botsCasm = json.parse(
+  fs.readFileSync("./assets/gridy_BotContract.compiled_contract_class.json").toString("ascii")
+);
+
 
 const WIDTH = 7000;
 const HEIGHT = 5000;
@@ -83,21 +93,6 @@ const declareContract = async (compiledTestCasm, compiledTestSierra) => {
   );
 };
 
-const deployContract = async (class_hash, calldata) => {
-  const deployResponse = await account.deploy({
-    classHash: class_hash,
-    calldata: calldata,
-    salt: BigInt(0),
-    unique: false,
-  });
-
-  console.log(
-    "Contract deployed with address =",
-    deployResponse.contract_address
-  );
-
-  return deployResponse.contract_address;
-};
 
 const locationsToArgs = () => {
   // assign random
@@ -143,12 +138,12 @@ const locationsToArgs = () => {
 
 const gameInitialiseParams = async () => {
   const args = locationsToArgs();
-  const myCallData = new CallData(gameAbi);
+  const myCallData = new CallData(gameSierra.abi);
 
   const bot_contract_class_hash = await getBotClassHash();
 
   const calldata = myCallData.compile("constructor", {
-    executor: accountAddress,
+    executor: DEPLOYER_ADDRESS,
     bot_contract_class_hash: bot_contract_class_hash,
     bomb_value: 666,
     mining_points: 10,
@@ -163,11 +158,11 @@ const gameInitialiseParams = async () => {
 };
 
 const botInitialiseParams = async (game_contract_address) => {
-  const myCallData = new CallData(botAbi);
+  const myCallData = new CallData(botsSierra.abi);
 
   const calldata = myCallData.compile("constructor", {
-    executor: accountAddress,
-    spawned_by: accountAddress,
+    executor: DEPLOYER_ADDRESS,
+    spawned_by: "0x07484e8e3af210b2ead47fa08c96f8d18b616169b350a8b75fe0dc4d2e01d493",
     game_contract: game_contract_address,
     initial_location: 0,
     grid_width: WIDTH,
@@ -179,17 +174,103 @@ const botInitialiseParams = async (game_contract_address) => {
   return calldata;
 };
 
+
 const main = async () => {
-  // deploy game contract
-  const game_class_hash = await getGameClassHash();
+  const account = new Account(provider, DEPLOYER_ADDRESS, DEPLOYER_PRIV_KEY);
+
   const gameCalldata = await gameInitialiseParams();
 
-  console.log("Game class hash", game_class_hash);
-
-  const game_contract_address = await deployContract(
-    game_class_hash,
-    gameCalldata
-  );
+  const deployResponse = await account.declareAndDeploy({
+    contract: gameSierra,
+    casm: gameCasm,
+    constructorCalldata: gameCalldata,
+  });
+  console.log("Receipt: ", deployResponse);
+  console.log("Contract Deployed : ", deployResponse.deploy.contract_address);
 };
+
+const declareBots = async () => {
+  const account = new Account(provider, DEPLOYER_ADDRESS, DEPLOYER_PRIV_KEY);
+
+  const gameAddress = '0x60ddf2d3f637783d5a8277529138c70a12a372391519ace2a47dae7de42afea';
+
+  const botsCalldata = await botInitialiseParams('0x60ddf2d3f637783d5a8277529138c70a12a372391519ace2a47dae7de42afea');
+
+  const deployResponse = await account.declare({
+    contract: botsSierra,
+    casm: botsCasm,
+    constructorCalldata: botsCalldata,
+  });
+  console.log("Receipt: ", deployResponse);
+};
+
+// main();
+
+const deployBots = async ()  => {
+  // Connect the deployed Test contract in Testnet
+  const account = new Account(provider, DEPLOYER_ADDRESS, DEPLOYER_PRIV_KEY);
+
+  const gameAddress = '0x60ddf2d3f637783d5a8277529138c70a12a372391519ace2a47dae7de42afea';
+  const gameContract = new Contract(gameSierra.abi, gameAddress, provider);
+
+  // Prepare call
+  const deployCall = gameContract.populate("deploy_bot", [
+    "0x07484e8e3af210b2ead47fa08c96f8d18b616169b350a8b75fe0dc4d2e01d493",
+    cairo.felt("0") // Convert location to felt252
+  ]);
+
+  // Estimate fee
+  const estimatedFee = await account.estimateInvokeFee(deployCall);
+
+  // Execute transaction
+  const { transaction_hash } = await account.execute(
+    deployCall,
+    undefined,
+    {
+      maxFee: estimatedFee.suggestedMaxFee
+    }
+  );
+
+  // Wait for transaction
+  const receipt = await account.waitForTransaction(transaction_hash);
+
+  console.log(transaction_hash,receipt);
+
+  return {
+    transactionHash: transaction_hash,
+    receipt
+  };
+}
+
+const enableContract = async ()  => {
+  // Connect the deployed Test contract in Testnet
+  const account = new Account(provider, DEPLOYER_ADDRESS, DEPLOYER_PRIV_KEY);
+
+  const gameAddress = '0x60ddf2d3f637783d5a8277529138c70a12a372391519ace2a47dae7de42afea';
+  const gameContract = new Contract(gameSierra.abi, gameAddress, provider);
+
+  // Prepare call
+  const enableCall = gameContract.populate("enable_contract");
+
+  // Estimate fee
+  const estimatedFee = await account.estimateInvokeFee(enableCall);
+
+  // Execute transaction
+  const { transaction_hash } = await account.execute(
+    enableCall,
+    undefined,
+    {
+      maxFee: estimatedFee.suggestedMaxFee
+    }
+  );
+
+  // Wait for transaction
+  const receipt = await account.waitForTransaction(transaction_hash);
+
+  console.log(transaction_hash,receipt);
+  
+}
+
+
 
 main();
