@@ -29,7 +29,7 @@ const CONFIG = {
   },
   ASSETS_PATH: "./assets",
   CONTRACT_ADDRESSES: {
-    GAME: "0x2f3dacc29ee5481332810043ac206ddbfe0c7aad59d2c78f808dcf3019627c5",
+    GAME: "0x647ce284953bd650be96bf641bfe9bf55a3fed73f63ab7a2ff3c7c49719e7d",
     SPAWNERS: [
           "0x0733a8e2bcced14dcc2608462bd96524fb64eef061689b6d976708efc2c8ddfd",
           "0x025073e0772b1e348a5da66ea67fb46f75ecdca1bd24dbbc98567cbf4a0e00b3",
